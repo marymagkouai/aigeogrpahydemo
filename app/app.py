@@ -2,6 +2,18 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
+# 1. PLACE CALLBACK AT THE TOP 🚩
+def reset_question():
+    # This clears the saved question from memory before the script reruns
+    if 'question' in st.session_state:
+        del st.session_state.question
+
+# ... (keep your existing setup and API configuration code here) ...
+
+# 2. LINK THE BUTTON TO THE CALLBACK 🔗
+# Use 'on_click' so the reset happens first
+st.button("Get a New Question 🆕", on_click=reset_question)
+
 # 1. Setup & Connection 🔒
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"].strip()
