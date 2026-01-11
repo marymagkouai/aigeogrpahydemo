@@ -2,74 +2,67 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
-# 1. PLACE CALLBACK AT THE TOP 🚩
-def reset_question():
-    # This clears the saved question from memory before the script reruns
-    if 'question' in st.session_state:
-        del st.session_state.question
-
-# ... (keep your existing setup and API configuration code here) ...
-
-# 2. LINK THE BUTTON TO THE CALLBACK 🔗
-# Use 'on_click' so the reset happens first
-st.button("Get a New Question 🆕", on_click=reset_question)
-
-# 1. Setup & Connection 🔒
+# 1. Setup & API Configuration 🔒
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"].strip()
     genai.configure(api_key=API_KEY)
-    
-    # Try the latest Gemini 3 model first
-    # If that fails, it will use the stable 2.5 version
-    try:
-        model_name = "gemini-3-flash-preview"
-        model = genai.GenerativeModel(model_name)
-        # Test if this model name works
-        model.generate_content("test", generation_config={"max_output_tokens": 1})
-    except:
-        model_name = "gemini-2.5-flash"
-        model = genai.GenerativeModel(model_name)
-
-    st.sidebar.success(f"Using Model: {model_name}")
+    model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error("Connection Failed. Check your API key in Secrets.")
+    st.error("Setup Error: Check your Streamlit Secrets!")
     st.stop()
+
+# 2. Reset Function 🔄
+# This must be defined BEFORE the button that uses it
+def get_new_question():
+    if 'question' in st.session_state:
+        del st.session_state.question
+    # We also clear the response so the old feedback disappears
+    if 'feedback' in st.session_state:
+        del st.session_state.feedback
 
 st.title("🌍 AI World Explorer")
 
-# 2. Game Memory 🧠
+# 3. Game Memory 🧠
+# If 'question' is NOT in memory, ask the AI for one
 if 'question' not in st.session_state:
-    try:
-        # We add a strong constraint to the prompt
-        prompt = "Ask a short, fun geography question. DO NOT provide the answer in your response."
-        res = model.generate_content(prompt)
-        st.session_state.question = res.text
-    except Exception as e:
-        st.error("The AI couldn't start the game.")
-        st.exception(e)
-        st.stop()
-
-# 3. Interface 🖥️
-st.info(st.session_state.question)
-ans = st.text_input("What's your guess?", key="user_answer")
-
-if st.button("Submit Answer"):
-    if not ans:
-        st.warning("Please type an answer!")
-    else:
+    with st.spinner("Generating a new challenge..."):
         try:
-            prompt = f"Question: {st.session_state.question}\nUser: {ans}\nReturn ONLY JSON: {{\"is_correct\": bool, \"fact\": \"short fact\"}}"
+            # Stricter prompt to prevent showing the answer
+            prompt = "Ask a fun, short geography question. DO NOT include the answer."
             res = model.generate_content(prompt)
-            
-            # Clean and parse JSON
-            clean_text = res.text.replace('```json', '').replace('```', '').strip()
-            data = json.loads(clean_text)
-            
-            if data["is_correct"]:
-                st.success(f"🥇 Correct! {data['fact']}")
-                st.button("Next Question", on_click=lambda: st.session_state.pop('question'))
-            else:
-                st.error(f"❌ Not quite. {data['fact']}")
+            st.session_state.question = res.text
         except Exception as e:
-            st.error("Processing Error")
-            st.exception(e)
+            st.error("Could not fetch a question.")
+            st.stop()
+
+# 4. Interface 🖥️
+st.info(st.session_state.question)
+user_ans = st.text_input("Your guess:", key="user_input")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("Submit Answer"):
+        if user_ans:
+            try:
+                # Ask AI to judge the specific answer given
+                judge_prompt = f"Q: {st.session_state.question}\nUser: {user_ans}\nReturn ONLY JSON: {{\"is_correct\": bool, \"fact\": str}}"
+                res = model.generate_content(judge_prompt)
+                
+                # Clean and save feedback to session state
+                clean_text = res.text.replace('```json', '').replace('```', '').strip()
+                st.session_state.feedback = json.loads(clean_text)
+            except:
+                st.error("Error judging answer.")
+
+with col2:
+    # This button uses the 'on_click' callback to clear state BEFORE rerun
+    st.button("Next Question 🆕", on_click=get_new_question)
+
+# 5. Show Results 🥇
+if 'feedback' in st.session_state:
+    f = st.session_state.feedback
+    if f["is_correct"]:
+        st.success(f"🥇 Correct! {f['fact']}")
+    else:
+        st.error(f"❌ Not quite. {f['fact']}")
