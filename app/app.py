@@ -1,6 +1,19 @@
 import streamlit as st
 import google.generativeai as genai
 
+import streamlit as st
+import google.generativeai as genai
+
+# --- Safety Check ---
+if "GOOGLE_API_KEY" in st.secrets:
+    raw_key = st.secrets["GOOGLE_API_KEY"]
+    # Show only the first 4 and last 3 characters for safety
+    st.write(f"🔍 Key Preview: `{raw_key[:4]}...{raw_key[-3:]}`")
+    st.write(f"📏 Key Length: {len(raw_key)} characters")
+else:
+    st.error("❌ The secret 'GOOGLE_API_KEY' was not found!")
+# --------------------
+
 st.title("🔑 API Connection Test")
 
 try:
