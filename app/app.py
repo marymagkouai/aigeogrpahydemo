@@ -1,5 +1,20 @@
 import streamlit as st
 import google.generativeai as genai
+
+# Try to initialize
+try:
+    API_KEY = st.secrets["GOOGLE_API_KEY"].strip()
+    genai.configure(api_key=API_KEY)
+    
+    # Just list the models - no complex generation yet
+    model_list = [m.name for m in genai.list_models()]
+    st.success(f"✅ Connection successful! Found {len(model_list)} models.")
+except Exception as e:
+    st.error("❌ Still hitting a wall. Here is the raw error:")
+    st.code(str(e))
+
+import streamlit as st
+import google.generativeai as genai
 import json
 
 # 1. Setup & Security 🔒
