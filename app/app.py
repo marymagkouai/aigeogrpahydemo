@@ -6,8 +6,7 @@ import json
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"].strip()
     genai.configure(api_key=API_KEY)
-    
-    # Using 'gemini-2.0-flash' - the stable standard for 2026
+    # Using the standard stable model for 2026
     model = genai.GenerativeModel('gemini-2.0-flash')
 except Exception as e:
     st.error("Setup Error: Check your Streamlit Secrets!")
@@ -15,26 +14,26 @@ except Exception as e:
 
 # 2. Reset Function 🔄
 def get_new_question():
-    if 'question' in st.session_state:
-        del st.session_state.question
-    if 'feedback' in st.session_state:
-        del st.session_state.feedback
+    keys_to_reset = ['question', 'feedback', 'user_input']
+    for key in keys_to_reset:
+        if key in st.session_state:
+            del st.session_state[key]
 
 st.title("🌍 AI World Explorer")
 
 # 3. Game Memory 🧠
 if 'question' not in st.session_state:
     try:
-        # Prompting for ONLY a question
+        # Prompt for just the question
         res = model.generate_content("Ask a fun, short geography question. DO NOT include the answer.")
         st.session_state.question = res.text
     except Exception as e:
         st.error("The AI couldn't generate a question.")
-        st.code(str(e)) # This helps us see the EXACT error if it fails
         st.stop()
 
 # 4. Interface 🖥️
 st.info(st.session_state.question)
+# Use a key to handle clearing the input later
 user_ans = st.text_input("Your guess:", key="user_input")
 
 col1, col2 = st.columns(2)
@@ -43,8 +42,13 @@ with col1:
     if st.button("Submit Answer"):
         if user_ans:
             try:
-                # Prompting for judging the answer
-                prompt = f"Q: {st.session_state.question}\nUser: {user_ans}\nReturn ONLY JSON: {{\"is_correct\": bool, \"fact\": \"short fact\"}}"
+                # Updated judge prompt to include the correct answer
+                prompt = f"""
+                Q: {st.session_state.question}
+                User: {user_ans}
+                Return ONLY JSON: 
+                {{"is_correct": bool, "correct_answer": "string", "fact": "string"}}
+                """
                 res = model.generate_content(prompt)
                 clean_text = res.text.replace('```json', '').replace('```', '').strip()
                 st.session_state.feedback = json.loads(clean_text)
@@ -54,10 +58,15 @@ with col1:
 with col2:
     st.button("Next Question 🆕", on_click=get_new_question)
 
-# 5. Show Results 🥇
+# 5. The "Reveal" Box 🥇
+# This only appears AFTER submission
 if 'feedback' in st.session_state:
     f = st.session_state.feedback
+    
     if f["is_correct"]:
-        st.success(f"🥇 Correct! {f['fact']}")
+        st.success(f"🥇 Correct! The answer was indeed {f['correct_answer']}.")
     else:
-        st.error(f"❌ Not quite. {f['fact']}")
+        # We show the correct answer here because the user was wrong
+        st.error(f"❌ Not quite. The correct answer was: **{f['correct_answer']}**")
+    
+    st.info(f"💡 **Did you know?** {f['fact']}")
