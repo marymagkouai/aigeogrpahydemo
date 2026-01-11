@@ -1,33 +1,52 @@
 import streamlit as st
 import google.generativeai as genai
+import json
 
-import streamlit as st
-import google.generativeai as genai
-
-# --- Safety Check ---
-if "GOOGLE_API_KEY" in st.secrets:
-    raw_key = st.secrets["GOOGLE_API_KEY"]
-    # Show only the first 4 and last 3 characters for safety
-    st.write(f"🔍 Key Preview: `{raw_key[:4]}...{raw_key[-3:]}`")
-    st.write(f"📏 Key Length: {len(raw_key)} characters")
-else:
-    st.error("❌ The secret 'GOOGLE_API_KEY' was not found!")
-# --------------------
-
-st.title("🔑 API Connection Test")
-
+# 1. Setup & Security 🔒
 try:
-    # Use the secret
-    api_key = st.secrets["GOOGLE_API_KEY"]
-    genai.configure(api_key=api_key)
-    
-    # Try to list models (this is the simplest 'handshake' test)
-    models = genai.list_models()
-    st.success("✅ Connection Successful! Found models:")
-    for m in models:
-        if 'generateContent' in m.supported_generation_methods:
-            st.write(f"- {m.name}")
-            
+    API_KEY = st.secrets["GOOGLE_API_KEY"]
+    # We add a specific transport to help the connection
+    genai.configure(api_key=API_KEY, transport='grpc')
+    model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error(f"❌ Connection Failed!")
-    st.code(str(e)) # This will show the RAW error from Google
+    st.error("Setup Error: Check your Streamlit Secrets!")
+    st.stop()
+
+st.title("🌍 AI World Explorer")
+
+# 2. Game Memory 🧠
+if 'question' not in st.session_state:
+    try:
+        res = model.generate_content("Ask a short, fun geography question.")
+        st.session_state.question = res.text
+    except Exception as e:
+        st.error("The AI couldn't start the game. Click 'Manage App' -> 'Logs' to see why.")
+        st.exception(e)
+        st.stop()
+
+# 3. Interface 🖥️
+st.info(st.session_state.question)
+ans = st.text_input("What's your guess?", key="user_answer")
+
+if st.button("Submit Answer"):
+    if not ans:
+        st.warning("Please type an answer first!")
+    else:
+        try:
+            prompt = f"Question: {st.session_state.question}\nUser: {ans}\nCorrect? Return ONLY JSON: {{\"is_correct\": bool, \"fact\": str}}"
+            res = model.generate_content(prompt)
+            
+            # Clean and parse JSON
+            clean_text = res.text.replace('```json', '').replace('```', '').strip()
+            data = json.loads(clean_text)
+            
+            if data["is_correct"]:
+                st.success(f"🥇 Correct! {data['fact']}")
+                if st.button("Next Question"):
+                    del st.session_state.question
+                    st.rerun()
+            else:
+                st.error(f"❌ Not quite. {data['fact']}")
+        except Exception as e:
+            st.error("Judging Error: The AI had trouble reading that.")
+            st.exception(e)
