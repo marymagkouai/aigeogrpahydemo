@@ -2,38 +2,36 @@ import streamlit as st
 import google.generativeai as genai
 import json
 
-# 1. Setup & API Configuration 🔒
+# 1. Setup & Connection 🔒
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"].strip()
     genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    # Using 'gemini-2.0-flash' - the stable standard for 2026
+    model = genai.GenerativeModel('gemini-2.0-flash')
 except Exception as e:
     st.error("Setup Error: Check your Streamlit Secrets!")
     st.stop()
 
 # 2. Reset Function 🔄
-# This must be defined BEFORE the button that uses it
 def get_new_question():
     if 'question' in st.session_state:
         del st.session_state.question
-    # We also clear the response so the old feedback disappears
     if 'feedback' in st.session_state:
         del st.session_state.feedback
 
 st.title("🌍 AI World Explorer")
 
 # 3. Game Memory 🧠
-# If 'question' is NOT in memory, ask the AI for one
 if 'question' not in st.session_state:
-    with st.spinner("Generating a new challenge..."):
-        try:
-            # Stricter prompt to prevent showing the answer
-            prompt = "Ask a fun, short geography question. DO NOT include the answer."
-            res = model.generate_content(prompt)
-            st.session_state.question = res.text
-        except Exception as e:
-            st.error("Could not fetch a question.")
-            st.stop()
+    try:
+        # Prompting for ONLY a question
+        res = model.generate_content("Ask a fun, short geography question. DO NOT include the answer.")
+        st.session_state.question = res.text
+    except Exception as e:
+        st.error("The AI couldn't generate a question.")
+        st.code(str(e)) # This helps us see the EXACT error if it fails
+        st.stop()
 
 # 4. Interface 🖥️
 st.info(st.session_state.question)
@@ -45,18 +43,15 @@ with col1:
     if st.button("Submit Answer"):
         if user_ans:
             try:
-                # Ask AI to judge the specific answer given
-                judge_prompt = f"Q: {st.session_state.question}\nUser: {user_ans}\nReturn ONLY JSON: {{\"is_correct\": bool, \"fact\": str}}"
-                res = model.generate_content(judge_prompt)
-                
-                # Clean and save feedback to session state
+                # Prompting for judging the answer
+                prompt = f"Q: {st.session_state.question}\nUser: {user_ans}\nReturn ONLY JSON: {{\"is_correct\": bool, \"fact\": \"short fact\"}}"
+                res = model.generate_content(prompt)
                 clean_text = res.text.replace('```json', '').replace('```', '').strip()
                 st.session_state.feedback = json.loads(clean_text)
             except:
                 st.error("Error judging answer.")
 
 with col2:
-    # This button uses the 'on_click' callback to clear state BEFORE rerun
     st.button("Next Question 🆕", on_click=get_new_question)
 
 # 5. Show Results 🥇
