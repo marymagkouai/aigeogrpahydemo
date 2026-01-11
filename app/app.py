@@ -28,10 +28,12 @@ st.title("🌍 AI World Explorer")
 # 2. Game Memory 🧠
 if 'question' not in st.session_state:
     try:
-        res = model.generate_content("Ask a short, fun geography question.")
+        # We add a strong constraint to the prompt
+        prompt = "Ask a short, fun geography question. DO NOT provide the answer in your response."
+        res = model.generate_content(prompt)
         st.session_state.question = res.text
     except Exception as e:
-        st.error("AI Generation Error")
+        st.error("The AI couldn't start the game.")
         st.exception(e)
         st.stop()
 
